@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Control de Vencimientos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --choco: #4A2F23;
+    --choco-light: #7A5540;
+    --frutilla: #E1495F;
+    --frutilla-bg: #FBE4E7;
+    --durazno: #E68A3A;
+    --durazno-bg: #FCE9D4;
+    --mostaza: #D6A527;
+    --mostaza-bg: #FBF1D5;
+    --pistacho: #6E9A5C;
+    --pistacho-bg: #E4EEDD;
+    --vainilla: #FDF4EC;
+    --card: #FFFFFF;
+    --border: #EEDFCF;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  body{
+    margin:0;
+    background: var(--vainilla);
+    font-family:'Inter', sans-serif;
+    color: var(--choco);
+    min-height:100vh;
+    padding-bottom:90px;
+  }
+  header{
+    padding: 22px 18px 16px;
+    background: var(--choco);
+    color: var(--vainilla);
+    position: sticky; top:0; z-index:10;
+    box-shadow: 0 2px 10px rgba(74,47,35,0.15);
+  }
+  header h1{
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: 22px;
+    margin:0 0 2px;
+    letter-spacing: -0.3px;
+  }
+  header p{
+    margin:0;
+    font-size: 13px;
+    opacity:0.75;
+  }
+  .stats{
+    display:flex;
+    gap:8px;
+    padding: 14px 16px 4px;
+  }
+  .stat{
+    flex:1;
+    background: var(--card);
+    border-radius: 14px;
+    padding: 10px 8px;
+    text-align:center;
+    border: 1px solid var(--border);
+  }
+  .stat .num{
+    font-family:'Fredoka', sans-serif;
+    font-size: 22px;
+    font-weight:600;
+    line-height:1;
+  }
+  .stat .lbl{
+    font-size: 10.5px;
+    color: var(--choco-light);
+    margin-top:4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .stat.vencido .num{color:var(--frutilla);}
+  .stat.hoy .num{color:var(--durazno);}
+  .stat.ok .num{color:var(--pistacho);}
+
+  main{padding: 8px 16px 16px;}
+
+  .empty{
+    text-align:center;
+    padding: 60px 20px;
+    color: var(--choco-light);
+  }
+  .empty .emoji{font-size:38px; margin-bottom:10px;}
+  .empty p{font-size:14px; margin:4px 0;}
+
+  .group-label{
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--choco-light);
+    margin: 18px 4px 8px;
+  }
+
+  .tag{
+    position: relative;
+    background: var(--card);
+    border-radius: 12px;
+    padding: 13px 14px 13px 18px;
+    margin-bottom: 10px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--pistacho);
+  }
+  .tag::before{
+    content:'';
+    position:absolute;
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--vainilla);
+    border: 1.5px solid var(--border);
+  }
+  .tag.vencido{border-left-color: var(--frutilla);}
+  .tag.hoy{border-left-color: var(--durazno);}
+  .tag.pronto{border-left-color: var(--mostaza);}
+
+  .tag-info{flex:1; min-width:0;}
+  .tag-name{
+    font-weight:600;
+    font-size: 15px;
+    margin:0 0 3px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .tag-meta{
+    font-size: 12.5px;
+    color: var(--choco-light);
+    display:flex;
+    gap:8px;
+    align-items:center;
+    flex-wrap:wrap;
+  }
+  .pill{
+    display:inline-block;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11.5px;
+    font-weight:600;
+  }
+  .pill.vencido{background:var(--frutilla-bg); color:var(--frutilla);}
+  .pill.hoy{background:var(--durazno-bg); color:var(--durazno);}
+  .pill.pronto{background:var(--mostaza-bg); color:var(--mostaza);}
+  .pill.ok{background:var(--pistacho-bg); color:var(--pistacho);}
+
+  .qty{
+    font-size: 12.5px;
+    color: var(--choco-light);
+  }
+
+  .remove-btn{
+    background: var(--vainilla);
+    border: 1px solid var(--border);
+    color: var(--choco-light);
+    width: 34px; height:34px;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor:pointer;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .remove-btn:active{background: var(--frutilla-bg); color: var(--frutilla); border-color: var(--frutilla);}
+
+  .fab{
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--frutilla);
+    color: white;
+    border:none;
+    padding: 15px 28px;
+    border-radius: 30px;
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: 15px;
+    box-shadow: 0 6px 18px rgba(225,73,95,0.4);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    z-index: 20;
+  }
+  .fab:active{transform: translateX(-50%) scale(0.97);}
+
+  .sheet-overlay{
+    position:fixed; inset:0;
+    background: rgba(74,47,35,0.4);
+    z-index: 30;
+    display:none;
+    align-items:flex-end;
+  }
+  .sheet-overlay.open{display:flex;}
+  .sheet{
+    background: var(--vainilla);
+    width:100%;
+    border-radius: 22px 22px 0 0;
+    padding: 20px 20px 26px;
+    max-height: 88vh;
+    overflow-y:auto;
+    animation: slideup 0.22s ease-out;
+  }
+  @keyframes slideup{from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+  .sheet h2{
+    font-family:'Fredoka', sans-serif;
+    margin:0 0 16px;
+    font-size:19px;
+  }
+  .field{margin-bottom:14px;}
+  .field label{
+    display:block;
+    font-size: 12.5px;
+    font-weight:600;
+    color: var(--choco-light);
+    margin-bottom:6px;
+  }
+  .field input{
+    width:100%;
+    padding: 12px 13px;
+    border-radius: 11px;
+    border: 1.5px solid var(--border);
+    background: var(--card);
+    font-size: 15px;
+    font-family:'Inter', sans-serif;
+    color: var(--choco);
+  }
+  .field input:focus{outline:none; border-color: var(--frutilla);}
+  .row2{display:flex; gap:10px;}
+  .row2 .field{flex:1;}
+  .sheet-actions{
+    display:flex;
+    gap:10px;
+    margin-top: 6px;
+  }
+  .btn{
+    flex:1;
+    padding: 13px;
+    border-radius: 12px;
+    border:none;
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: 15px;
+    cursor:pointer;
+  }
+  .btn-cancel{background: var(--card); color: var(--choco-light); border: 1.5px solid var(--border);}
+  .btn-save{background: var(--frutilla); color:white;}
+  .btn-save:disabled{opacity:0.5;}
+
+  .toast{
+    position:fixed;
+    top: 16px; left:50%;
+    transform: translateX(-50%) translateY(-60px);
+    background: var(--choco);
+    color: var(--vainilla);
+    padding: 11px 20px;
+    border-radius: 30px;
+    font-size: 13.5px;
+    z-index: 50;
+    transition: transform 0.25s ease;
+  }
+  .toast.show{transform: translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧁 Control de Vencimientos</h1>
+  <p id="todayDate" style="font-weight:600; opacity:0.9; margin-bottom:2px;"></p>
+  <p id="subtitle">Cargando...</p>
+</header>
+
+<div class="stats">
+  <div class="stat vencido"><div class="num" id="statVencido">0</div><div class="lbl">Vencidos</div></div>
+  <div class="stat hoy"><div class="num" id="statHoy">0</div><div class="lbl">Retirar hoy</div></div>
+  <div class="stat ok"><div class="num" id="statOk">0</div><div class="lbl">En stock</div></div>
+</div>
+
+<main id="main"></main>
+
+<button class="fab" id="openSheet">＋ Cargar producto</button>
+
+<div class="sheet-overlay" id="overlay">
+  <div class="sheet">
+    <h2 id="sheetTitle">Nuevo producto</h2>
+    <div class="field">
+      <label>Nombre del producto</label>
+      <input type="text" id="fName" placeholder="Ej: Medialunas de manteca" list="commonProducts">
+      <datalist id="commonProducts">
+        <option value="Medialunas de manteca">
+        <option value="Facturas surtidas">
+        <option value="Torta de chocolate">
+        <option value="Alfajores de maicena">
+        <option value="Budín de limón">
+        <option value="Cheesecake">
+        <option value="Pan dulce">
+        <option value="Scones">
+      </datalist>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Cantidad</label>
+        <input type="number" id="fQty" placeholder="1" min="1">
+      </div>
+      <div class="field">
+        <label>Fecha de la etiqueta</label>
+        <input type="date" id="fDate">
+      </div>
+    </div>
+    <div class="field">
+      <label>Observaciones (opcional)</label>
+      <textarea id="fNotes" placeholder="Ej: reservado para un cliente" rows="2" style="width:100%; padding:12px 13px; border-radius:11px; border:1.5px solid var(--border); background:var(--card); font-size:14px; font-family:'Inter',sans-serif; color:var(--choco); resize:vertical;"></textarea>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="cancelBtn">Cancelar</button>
+      <button class="btn btn-save" id="saveBtn">Guardar</button>
+    </div>
+    <button id="deleteFromSheetBtn" style="display:none; width:100%; margin-top:10px; background:none; border:none; color:var(--frutilla); font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600; padding:8px; cursor:pointer;">Eliminar este producto</button>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="confirmOverlay">
+  <div class="sheet">
+    <h2>¿Retirar producto?</h2>
+    <p id="confirmMsg" style="color:var(--choco-light); font-size:14px; margin:-6px 0 16px;"></p>
+    <div class="sheet-actions">
+      <button class="btn btn-cancel" id="confirmCancelBtn">Cancelar</button>
+      <button class="btn btn-save" id="confirmOkBtn" style="background:var(--frutilla);">Sí, retirar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const STORAGE_KEY = 'bakery-products';
+let products = [];
+
+function daysUntil(dateStr){
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const target = new Date(dateStr + 'T00:00:00');
+  return Math.round((target - today) / 86400000);
+}
+
+// La fecha de retiro es un día antes de la fecha impresa en la etiqueta
+function retiroDate(expDateStr){
+  const d = new Date(expDateStr + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0,10);
+}
+
+function fmtFecha(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('es-AR', {day:'2-digit', month:'2-digit'});
+}
+
+function mostrarFechaHoy(){
+  const hoy = new Date();
+  const texto = hoy.toLocaleDateString('es-AR', {weekday:'long', day:'2-digit', month:'long'});
+  document.getElementById('todayDate').textContent = 'Hoy: ' + texto.charAt(0).toUpperCase() + texto.slice(1);
+}
+
+function fmtDias(d){
+  if(d < 0) return `Debería estar retirado (hace ${Math.abs(d)} día${Math.abs(d)===1?'':'s'})`;
+  if(d === 0) return 'Retirar hoy';
+  if(d === 1) return 'Retirar mañana';
+  return `Retirar en ${d} días`;
+}
+
+// dVenc = días hasta la fecha real de vencimiento (la de la etiqueta)
+// dRetiro = días hasta la fecha en la que hay que retirarlo (un día antes)
+function estadoUrgencia(dVenc, dRetiro){
+  if(dVenc < 0) return 'vencido';           // ya pasó la fecha real de vencimiento -> rojo
+  if(dRetiro <= 0) return 'hoy';            // hay que retirarlo hoy (o ya se pasó el día de retiro) -> naranja
+  if(dRetiro <= 2) return 'pronto';         // se retira en 1-2 días -> amarillo
+  return 'ok';                              // todavía queda margen -> verde
+}
+
+async function loadProducts(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    products = raw ? JSON.parse(raw) : [];
+    render();
+  }catch(e){
+    showToast('No se pudo leer los datos guardados en el celular');
+    products = products || [];
+    render();
+  }
+}
+
+async function saveProducts(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+  }catch(e){
+    showToast('No se pudo guardar. Revisá el espacio del celular');
+  }
+}
+
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(()=> t.classList.remove('show'), 1800);
+}
+
+function render(){
+  const main = document.getElementById('main');
+  const sorted = [...products].sort((a,b)=> daysUntil(retiroDate(a.expDate)) - daysUntil(retiroDate(b.expDate)));
+
+  const vencidos = sorted.filter(p => daysUntil(p.expDate) < 0).length;
+  const hoy = sorted.filter(p => estadoUrgencia(daysUntil(p.expDate), daysUntil(retiroDate(p.expDate))) === 'hoy').length;
+  document.getElementById('statVencido').textContent = vencidos;
+  document.getElementById('statHoy').textContent = hoy;
+  document.getElementById('statOk').textContent = sorted.length;
+  document.getElementById('subtitle').textContent = sorted.length
+    ? `${sorted.length} producto${sorted.length===1?'':'s'} en mostrador`
+    : 'Sin productos cargados';
+
+  if(sorted.length === 0){
+    main.innerHTML = `<div class="empty"><div class="emoji">🍞</div><p><strong>No hay productos cargados.</strong></p><p>Tocá "Cargar producto" para empezar.</p></div>`;
+    return;
+  }
+
+  let html = '';
+  let lastGroup = null;
+  sorted.forEach(p => {
+    const rDate = retiroDate(p.expDate);
+    const d = daysUntil(rDate);
+    const dVenc = daysUntil(p.expDate);
+    const estado = estadoUrgencia(dVenc, d);
+    const group = estado === 'vencido' ? 'Vencidos'
+      : estado === 'hoy' ? 'Retirar hoy'
+      : estado === 'pronto' ? 'Por retirar pronto'
+      : 'En stock';
+    if(group !== lastGroup){
+      html += `<div class="group-label">${group}</div>`;
+      lastGroup = group;
+    }
+    html += `
+      <div class="tag ${estado === 'ok' ? '' : estado}">
+        <div class="tag-info">
+          <p class="tag-name">${escapeHtml(p.name)}</p>
+          <div class="tag-meta">
+            <span class="pill ${estado}">${fmtDias(d)}</span>
+            ${p.qty ? `<span class="qty">${p.qty} unid.</span>` : ''}
+          </div>
+          <div class="tag-meta" style="margin-top:3px;">
+            <span class="qty">Etiqueta: ${fmtFecha(p.expDate)} · Retirar: ${fmtFecha(rDate)}</span>
+          </div>
+          ${p.notes ? `<div class="tag-meta" style="margin-top:5px; background:var(--vainilla); padding:6px 9px; border-radius:8px; color:var(--choco-light); font-style:italic;">📝 ${escapeHtml(p.notes)}</div>` : ''}
+        </div>
+        <button class="remove-btn" onclick="editProduct('${p.id}')" title="Editar producto" style="margin-right:-2px;">✎</button>
+        <button class="remove-btn" onclick="askRemoveConfirm('${p.id}')" title="Retirar del mostrador">✕</button>
+      </div>`;
+  });
+  main.innerHTML = html;
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+let pendingRemoveId = null;
+
+function askRemoveConfirm(id){
+  const p = products.find(x => x.id === id);
+  if(!p) return;
+  pendingRemoveId = id;
+  document.getElementById('confirmMsg').textContent = `Vas a sacar "${p.name}" de la lista.`;
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+window.askRemoveConfirm = askRemoveConfirm;
+
+document.getElementById('confirmCancelBtn').onclick = () => {
+  pendingRemoveId = null;
+  document.getElementById('confirmOverlay').classList.remove('open');
+};
+
+document.getElementById('confirmOkBtn').onclick = async () => {
+  document.getElementById('confirmOverlay').classList.remove('open');
+  if(pendingRemoveId){
+    await removeProduct(pendingRemoveId);
+    pendingRemoveId = null;
+  }
+};
+
+async function removeProduct(id){
+  products = products.filter(x => x.id !== id);
+  await saveProducts();
+  render();
+  showToast('Producto retirado');
+}
+
+// Sheet handling
+const overlay = document.getElementById('overlay');
+let editingId = null; // null = cargando producto nuevo, sino = editando ese id
+
+document.getElementById('openSheet').onclick = () => {
+  editingId = null;
+  document.getElementById('sheetTitle').textContent = 'Nuevo producto';
+  document.getElementById('saveBtn').textContent = 'Guardar';
+  document.getElementById('deleteFromSheetBtn').style.display = 'none';
+  document.getElementById('fName').value = '';
+  document.getElementById('fQty').value = '1';
+  document.getElementById('fDate').value = '';
+  document.getElementById('fNotes').value = '';
+  overlay.classList.add('open');
+};
+
+function editProduct(id){
+  const p = products.find(x => x.id === id);
+  if(!p) return;
+  editingId = id;
+  document.getElementById('sheetTitle').textContent = 'Editar producto';
+  document.getElementById('saveBtn').textContent = 'Guardar cambios';
+  document.getElementById('deleteFromSheetBtn').style.display = 'block';
+  document.getElementById('fName').value = p.name;
+  document.getElementById('fQty').value = p.qty || '';
+  document.getElementById('fDate').value = p.expDate;
+  document.getElementById('fNotes').value = p.notes || '';
+  overlay.classList.add('open');
+}
+window.editProduct = editProduct;
+
+document.getElementById('deleteFromSheetBtn').onclick = () => {
+  if(!editingId) return;
+  overlay.classList.remove('open');
+  askRemoveConfirm(editingId);
+};
+
+document.getElementById('cancelBtn').onclick = () => overlay.classList.remove('open');
+overlay.onclick = (e) => { if(e.target === overlay) overlay.classList.remove('open'); };
+
+document.getElementById('saveBtn').onclick = async () => {
+  const name = document.getElementById('fName').value.trim();
+  const qty = document.getElementById('fQty').value;
+  const date = document.getElementById('fDate').value;
+  const notes = document.getElementById('fNotes').value.trim();
+  if(!name || !date){
+    showToast('Falta nombre o fecha de vencimiento');
+    return;
+  }
+  if(editingId){
+    const p = products.find(x => x.id === editingId);
+    if(p){ p.name = name; p.qty = qty; p.expDate = date; p.notes = notes; }
+    await saveProducts();
+    overlay.classList.remove('open');
+    render();
+    showToast('Producto actualizado');
+  } else {
+    products.push({
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+      name, qty, expDate: date, notes
+    });
+    await saveProducts();
+    overlay.classList.remove('open');
+    render();
+    showToast('Producto cargado');
+  }
+};
+
+loadProducts();
+mostrarFechaHoy();
+
+// Recalcula "días para retirar" apenas cambia el día (esto es un cálculo local,
+// no consulta al servidor, así que no tiene costo dejarlo corriendo)
+let lastCheckedDay = new Date().getDate();
+setInterval(() => {
+  const nowDay = new Date().getDate();
+  if(nowDay !== lastCheckedDay){
+    lastCheckedDay = nowDay;
+    mostrarFechaHoy();
+    render();
+  }
+}, 30000);
+</script>
+</body>
+</html>
