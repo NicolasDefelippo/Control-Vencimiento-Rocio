@@ -6,6 +6,9 @@
 <title>Control de Vencimientos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --choco: #4A2F23;
@@ -276,10 +279,32 @@
 </head>
 <body>
 
+<div id="loginScreen" style="position:fixed; inset:0; background:var(--choco); z-index:100; display:flex; align-items:center; justify-content:center; padding:24px;">
+  <div style="width:100%; max-width:340px;">
+    <div style="text-align:center; margin-bottom:28px;">
+      <div style="font-size:40px; margin-bottom:8px;">🧁</div>
+      <h1 style="font-family:'Fredoka',sans-serif; color:var(--vainilla); font-size:22px; margin:0;">Control de Vencimientos</h1>
+    </div>
+    <div class="field">
+      <label style="color:var(--vainilla); opacity:0.8;">Usuario</label>
+      <input type="email" id="loginEmail" placeholder="usuario del local">
+    </div>
+    <div class="field">
+      <label style="color:var(--vainilla); opacity:0.8;">Contraseña</label>
+      <input type="password" id="loginPass" placeholder="••••••••">
+    </div>
+    <p id="loginError" style="color:var(--frutilla); font-size:13px; min-height:18px; margin:-6px 0 12px;"></p>
+    <button id="loginBtn" class="btn btn-save" style="width:100%;">Entrar</button>
+  </div>
+</div>
+
+<div id="appRoot" style="display:none;">
+
 <header>
   <h1>🧁 Control de Vencimientos</h1>
   <p id="todayDate" style="font-weight:600; opacity:0.9; margin-bottom:2px;"></p>
   <p id="subtitle">Cargando...</p>
+  <button id="logoutBtn" style="position:absolute; top:20px; right:18px; background:rgba(253,244,236,0.12); border:1px solid rgba(253,244,236,0.3); color:var(--vainilla); font-size:12px; padding:6px 12px; border-radius:20px; cursor:pointer;">Salir</button>
 </header>
 
 <div class="stats">
@@ -344,9 +369,30 @@
 
 <div class="toast" id="toast"></div>
 
+</div><!-- cierre de #appRoot -->
+
 <script>
-const STORAGE_KEY = 'bakery-products';
+// --- Configuración de Firebase ---
+// Pegá acá el firebaseConfig que te da la consola de Firebase (Configuración del proyecto > Tus apps)
+const firebaseConfig = {
+  apiKey: "AIzaSyBXu6cvQhJSe3vFhpC9d4YL5QVh_8Wx7uI",
+  authDomain: "control-vencimientos-rocio.firebaseapp.com",
+  projectId: "control-vencimientos-rocio",
+  storageBucket: "control-vencimientos-rocio.firebasestorage.app",
+  messagingSenderId: "388032322310",
+  appId: "1:388032322310:web:e07d756307434191f2dc87"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const productsRef = db.collection('products');
+let unsubscribeProducts = null;
 let products = [];
+
+// Nota: ya no hay funciones separadas de "cargar" y "guardar" en bloque —
+// cada alta/edición/borrado habla directo con Firestore (ver más abajo),
+// y la suscripción en tiempo real (suscribirseAProductos) mantiene todo actualizado solo.
 
 function daysUntil(dateStr){
   const today = new Date();
@@ -389,24 +435,20 @@ function estadoUrgencia(dVenc, dRetiro){
   return 'ok';                              // todavía queda margen -> verde
 }
 
-async function loadProducts(){
-  try{
-    const raw = localStorage.getItem(STORAGE_KEY);
-    products = raw ? JSON.parse(raw) : [];
-    render();
-  }catch(e){
-    showToast('No se pudo leer los datos guardados en el celular');
-    products = products || [];
-    render();
-  }
-}
-
-async function saveProducts(){
-  try{
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
-  }catch(e){
-    showToast('No se pudo guardar. Revisá el espacio del celular');
-  }
+// Se suscribe a la colección de Firestore: cada cambio (propio o de otro celular)
+// llega acá solo, en tiempo real, sin que nadie tenga que refrescar nada.
+function suscribirseAProductos(){
+  if(unsubscribeProducts) unsubscribeProducts();
+  unsubscribeProducts = productsRef.onSnapshot(
+    (snapshot) => {
+      products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      render();
+    },
+    (error) => {
+      showToast('No se pudo conectar con la base de datos');
+      console.error(error);
+    }
+  );
 }
 
 function showToast(msg){
@@ -500,10 +542,12 @@ document.getElementById('confirmOkBtn').onclick = async () => {
 };
 
 async function removeProduct(id){
-  products = products.filter(x => x.id !== id);
-  await saveProducts();
-  render();
-  showToast('Producto retirado');
+  try{
+    await productsRef.doc(id).delete();
+    showToast('Producto retirado');
+  }catch(e){
+    showToast('No se pudo borrar. Revisá tu conexión');
+  }
 }
 
 // Sheet handling
@@ -555,27 +599,57 @@ document.getElementById('saveBtn').onclick = async () => {
     showToast('Falta nombre o fecha de vencimiento');
     return;
   }
-  if(editingId){
-    const p = products.find(x => x.id === editingId);
-    if(p){ p.name = name; p.qty = qty; p.expDate = date; p.notes = notes; }
-    await saveProducts();
-    overlay.classList.remove('open');
-    render();
-    showToast('Producto actualizado');
-  } else {
-    products.push({
-      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-      name, qty, expDate: date, notes
-    });
-    await saveProducts();
-    overlay.classList.remove('open');
-    render();
-    showToast('Producto cargado');
+  try{
+    if(editingId){
+      await productsRef.doc(editingId).update({ name, qty, expDate: date, notes });
+      overlay.classList.remove('open');
+      showToast('Producto actualizado');
+    } else {
+      await productsRef.add({ name, qty, expDate: date, notes });
+      overlay.classList.remove('open');
+      showToast('Producto cargado');
+    }
+  }catch(e){
+    showToast('No se pudo guardar. Revisá tu conexión');
   }
 };
 
-loadProducts();
-mostrarFechaHoy();
+// --- Login ---
+const loginScreen = document.getElementById('loginScreen');
+const appRoot = document.getElementById('appRoot');
+
+document.getElementById('loginBtn').onclick = async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errorEl = document.getElementById('loginError');
+  errorEl.textContent = '';
+  if(!email || !pass){
+    errorEl.textContent = 'Completá usuario y contraseña';
+    return;
+  }
+  try{
+    await auth.signInWithEmailAndPassword(email, pass);
+  }catch(e){
+    errorEl.textContent = 'Usuario o contraseña incorrectos';
+  }
+};
+
+document.getElementById('logoutBtn').onclick = () => auth.signOut();
+
+// Reacciona automáticamente cuando alguien entra o sale de sesión
+auth.onAuthStateChanged((user) => {
+  if(user){
+    loginScreen.style.display = 'none';
+    appRoot.style.display = 'block';
+    mostrarFechaHoy();
+    suscribirseAProductos();
+  } else {
+    if(unsubscribeProducts){ unsubscribeProducts(); unsubscribeProducts = null; }
+    appRoot.style.display = 'none';
+    loginScreen.style.display = 'flex';
+    document.getElementById('loginPass').value = '';
+  }
+});
 
 // Recalcula "días para retirar" apenas cambia el día (esto es un cálculo local,
 // no consulta al servidor, así que no tiene costo dejarlo corriendo)
@@ -591,3 +665,4 @@ setInterval(() => {
 </script>
 </body>
 </html>
+
