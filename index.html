@@ -348,7 +348,7 @@
     <h2 id="sheetTitle">Nuevo producto</h2>
     <div class="field">
       <label>Nombre del producto</label>
-      <input type="text" id="fName" placeholder="Ej: Medialunas de manteca" list="commonProducts">
+      <input type="text" id="fName" placeholder="Ej: Pastafrola de membrillo" list="commonProducts">
       <datalist id="commonProducts">
         <option value="Medialunas de manteca">
         <option value="Facturas surtidas">
@@ -366,13 +366,13 @@
         <input type="number" id="fQty" placeholder="1" min="1">
       </div>
       <div class="field">
-        <label>Fecha de la etiqueta</label>
+        <label>Fecha de vencimiento</label>
         <input type="date" id="fDate">
       </div>
     </div>
     <div class="field">
       <label>Observaciones (opcional)</label>
-      <textarea id="fNotes" placeholder="Ej: reservado para un cliente" rows="2" style="width:100%; padding:12px 13px; border-radius:11px; border:1.5px solid var(--border); background:var(--card); font-size:14px; font-family:'Inter',sans-serif; color:var(--choco); resize:vertical;"></textarea>
+      <textarea id="fNotes" placeholder="Ej: x6 unidades" rows="2" style="width:100%; padding:12px 13px; border-radius:11px; border:1.5px solid var(--border); background:var(--card); font-size:14px; font-family:'Inter',sans-serif; color:var(--choco); resize:vertical;"></textarea>
     </div>
     <div class="sheet-actions">
       <button class="btn btn-cancel" id="cancelBtn">Cancelar</button>
@@ -526,7 +526,7 @@ function render(){
             ${p.qty ? `<span class="qty">${p.qty} unid.</span>` : ''}
           </div>
           <div class="tag-meta" style="margin-top:3px;">
-            <span class="qty">Etiqueta: ${fmtFecha(p.expDate)} · Retirar: ${fmtFecha(rDate)}</span>
+            <span class="qty">Vencimiento: ${fmtFecha(p.expDate)} · Retirar: ${fmtFecha(rDate)}</span>
           </div>
           ${p.notes ? `<div class="tag-meta" style="margin-top:5px; background:var(--vainilla); padding:6px 9px; border-radius:8px; color:var(--choco-light); font-style:italic;">📝 ${escapeHtml(p.notes)}</div>` : ''}
         </div>
