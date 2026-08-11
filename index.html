@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Control de vencimientos</title>
+<title>Control de Vencimientos</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧁</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2222%22 fill=%22%23FDF4EC%22/><text x=%2250%22 y=%2262%22 font-size=%2260%22 text-anchor=%22middle%22>🧁</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -268,6 +268,47 @@
   .row2{display:flex; gap:10px;}
   .row2 .field{flex:1; min-width:0;}
   .row2 .field input{width:100%; min-width:0;}
+  .cat-toggle{display:flex; gap:6px;}
+  .cat-btn{
+    flex:1;
+    padding: 12px 6px;
+    border-radius: 11px;
+    border: 1.5px solid var(--border);
+    background: var(--card);
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size: 13px;
+    color: var(--choco-light);
+    cursor:pointer;
+  }
+  .cat-btn.active{
+    background: var(--choco);
+    color: var(--vainilla);
+    border-color: var(--choco);
+  }
+
+  .cat-filter{
+    display:flex;
+    gap:8px;
+    padding: 4px 16px 12px;
+  }
+  .cat-filter-btn{
+    flex:1;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border);
+    background: var(--card);
+    font-family:'Fredoka', sans-serif;
+    font-weight:600;
+    font-size: 13.5px;
+    color: var(--choco-light);
+    cursor:pointer;
+  }
+  .cat-filter-btn.active{
+    background: var(--frutilla);
+    color: white;
+    border-color: var(--frutilla);
+  }
   .sheet-actions{
     display:flex;
     gap:10px;
@@ -341,6 +382,11 @@
   <div class="stat ok"><div class="num" id="statOk">0</div><div class="lbl">En stock</div></div>
 </div>
 
+<div class="cat-filter">
+  <button class="cat-filter-btn active" id="filterGeneralBtn">🥐 Generales</button>
+  <button class="cat-filter-btn" id="filterTortaBtn">🎂 Tortas</button>
+</div>
+
 <main id="main"></main>
 
 <button class="fab" id="openSheet">＋ Cargar producto</button>
@@ -350,7 +396,7 @@
     <h2 id="sheetTitle">Nuevo producto</h2>
     <div class="field">
       <label>Nombre del producto</label>
-      <input type="text" id="fName" placeholder="Ej: Pastafrola de membrillo" list="commonProducts">
+      <input type="text" id="fName" placeholder="Ej: Medialunas de manteca" list="commonProducts">
       <datalist id="commonProducts">
         <option value="Medialunas de manteca">
         <option value="Facturas surtidas">
@@ -364,17 +410,20 @@
     </div>
     <div class="row2">
       <div class="field">
-        <label>Cantidad</label>
-        <input type="number" id="fQty" placeholder="1" min="1">
+        <label>Categoría</label>
+        <div class="cat-toggle">
+          <button type="button" class="cat-btn active" id="catGeneralBtn">🥐 General</button>
+          <button type="button" class="cat-btn" id="catTortaBtn">🎂 Torta</button>
+        </div>
       </div>
       <div class="field">
-        <label>Fecha de vencimiento</label>
+        <label>Fecha de la etiqueta</label>
         <input type="date" id="fDate">
       </div>
     </div>
     <div class="field">
       <label>Observaciones (opcional)</label>
-      <textarea id="fNotes" placeholder="Ej: x6 unidades" rows="2" style="width:100%; padding:12px 13px; border-radius:11px; border:1.5px solid var(--border); background:var(--card); font-size:14px; font-family:'Inter',sans-serif; color:var(--choco); resize:vertical;"></textarea>
+      <textarea id="fNotes" placeholder="Ej: reservado para un cliente" rows="2" style="width:100%; padding:12px 13px; border-radius:11px; border:1.5px solid var(--border); background:var(--card); font-size:14px; font-family:'Inter',sans-serif; color:var(--choco); resize:vertical;"></textarea>
     </div>
     <div class="sheet-actions">
       <button class="btn btn-cancel" id="cancelBtn">Cancelar</button>
@@ -417,6 +466,7 @@ const db = firebase.firestore();
 const productsRef = db.collection('products');
 let unsubscribeProducts = null;
 let products = [];
+let currentCategoryFilter = 'general'; // qué pestaña se está viendo: 'general' o 'torta'
 
 // Nota: ya no hay funciones separadas de "cargar" y "guardar" en bloque —
 // cada alta/edición/borrado habla directo con Firestore (ver más abajo),
@@ -448,6 +498,7 @@ function mostrarFechaHoy(){
 }
 
 function fmtDias(d){
+  if(d === -1) return 'Retirar hoy (atrasado 1 día)';
   if(d < 0) return `Debería estar retirado (hace ${Math.abs(d)} día${Math.abs(d)===1?'':'s'})`;
   if(d === 0) return 'Retirar hoy';
   if(d === 1) return 'Retirar mañana';
@@ -488,7 +539,8 @@ function showToast(msg){
 
 function render(){
   const main = document.getElementById('main');
-  const sorted = [...products].sort((a,b)=> daysUntil(retiroDate(a.expDate)) - daysUntil(retiroDate(b.expDate)));
+  const enCategoria = products.filter(p => (p.category || 'general') === currentCategoryFilter);
+  const sorted = [...enCategoria].sort((a,b)=> daysUntil(retiroDate(a.expDate)) - daysUntil(retiroDate(b.expDate)));
 
   const vencidos = sorted.filter(p => daysUntil(p.expDate) < 0).length;
   const hoy = sorted.filter(p => estadoUrgencia(daysUntil(p.expDate), daysUntil(retiroDate(p.expDate))) === 'hoy').length;
@@ -525,10 +577,9 @@ function render(){
           <p class="tag-name">${escapeHtml(p.name)}</p>
           <div class="tag-meta">
             <span class="pill ${estado}">${fmtDias(d)}</span>
-            ${p.qty ? `<span class="qty">${p.qty} unid.</span>` : ''}
           </div>
           <div class="tag-meta" style="margin-top:3px;">
-            <span class="qty">Vencimiento: ${fmtFecha(p.expDate)} · Retirar: ${fmtFecha(rDate)}</span>
+            <span class="qty">Etiqueta: ${fmtFecha(p.expDate)} · Retirar: ${fmtFecha(rDate)}</span>
           </div>
           ${p.notes ? `<div class="tag-meta" style="margin-top:5px; background:var(--vainilla); padding:6px 9px; border-radius:8px; color:var(--choco-light); font-style:italic;">📝 ${escapeHtml(p.notes)}</div>` : ''}
         </div>
@@ -582,15 +633,25 @@ async function removeProduct(id){
 const overlay = document.getElementById('overlay');
 let editingId = null; // null = cargando producto nuevo, sino = editando ese id
 
+let selectedCategory = 'general'; // categoría elegida en el formulario que está abierto
+
+function setSelectedCategory(cat){
+  selectedCategory = cat;
+  document.getElementById('catGeneralBtn').classList.toggle('active', cat === 'general');
+  document.getElementById('catTortaBtn').classList.toggle('active', cat === 'torta');
+}
+document.getElementById('catGeneralBtn').onclick = () => setSelectedCategory('general');
+document.getElementById('catTortaBtn').onclick = () => setSelectedCategory('torta');
+
 document.getElementById('openSheet').onclick = () => {
   editingId = null;
   document.getElementById('sheetTitle').textContent = 'Nuevo producto';
   document.getElementById('saveBtn').textContent = 'Guardar';
   document.getElementById('deleteFromSheetBtn').style.display = 'none';
   document.getElementById('fName').value = '';
-  document.getElementById('fQty').value = '1';
   document.getElementById('fDate').value = '';
   document.getElementById('fNotes').value = '';
+  setSelectedCategory(currentCategoryFilter); // arranca en la misma pestaña que estás viendo
   overlay.classList.add('open');
 };
 
@@ -602,9 +663,9 @@ function editProduct(id){
   document.getElementById('saveBtn').textContent = 'Guardar cambios';
   document.getElementById('deleteFromSheetBtn').style.display = 'block';
   document.getElementById('fName').value = p.name;
-  document.getElementById('fQty').value = p.qty || '';
   document.getElementById('fDate').value = p.expDate;
   document.getElementById('fNotes').value = p.notes || '';
+  setSelectedCategory(p.category || 'general');
   overlay.classList.add('open');
 }
 window.editProduct = editProduct;
@@ -620,7 +681,6 @@ overlay.onclick = (e) => { if(e.target === overlay) overlay.classList.remove('op
 
 document.getElementById('saveBtn').onclick = async () => {
   const name = document.getElementById('fName').value.trim();
-  const qty = document.getElementById('fQty').value;
   const date = document.getElementById('fDate').value;
   const notes = document.getElementById('fNotes').value.trim();
   if(!name || !date){
@@ -629,11 +689,11 @@ document.getElementById('saveBtn').onclick = async () => {
   }
   try{
     if(editingId){
-      await productsRef.doc(editingId).update({ name, qty, expDate: date, notes });
+      await productsRef.doc(editingId).update({ name, category: selectedCategory, expDate: date, notes });
       overlay.classList.remove('open');
       showToast('Producto actualizado');
     } else {
-      await productsRef.add({ name, qty, expDate: date, notes });
+      await productsRef.add({ name, category: selectedCategory, expDate: date, notes });
       overlay.classList.remove('open');
       showToast('Producto cargado');
     }
@@ -663,6 +723,20 @@ document.getElementById('loginBtn').onclick = async () => {
 };
 
 document.getElementById('logoutBtn').onclick = () => auth.signOut();
+
+document.getElementById('filterGeneralBtn').onclick = () => {
+  currentCategoryFilter = 'general';
+  document.getElementById('filterGeneralBtn').classList.add('active');
+  document.getElementById('filterTortaBtn').classList.remove('active');
+  render();
+};
+
+document.getElementById('filterTortaBtn').onclick = () => {
+  currentCategoryFilter = 'torta';
+  document.getElementById('filterTortaBtn').classList.add('active');
+  document.getElementById('filterGeneralBtn').classList.remove('active');
+  render();
+};
 
 // Reacciona automáticamente cuando alguien entra o sale de sesión
 auth.onAuthStateChanged((user) => {
