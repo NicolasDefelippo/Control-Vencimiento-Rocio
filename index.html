@@ -463,6 +463,17 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// Guarda los cambios en el celular mismo cuando falla la conexión, y los sincroniza
+// solos apenas vuelve internet. Sin esto, un producto cargado sin señal se podía perder.
+db.enablePersistence().catch((err) => {
+  if(err.code === 'failed-precondition'){
+    // La app está abierta en más de una pestaña/ventana a la vez — Firestore solo
+    // permite guardado offline en una a la vez. No rompe nada, solo no queda offline en esta pestaña.
+    console.warn('Guardado offline no disponible: hay otra pestaña abierta con la app.');
+  } else if(err.code === 'unimplemented'){
+    console.warn('Este navegador no soporta guardado offline.');
+  }
+});
 const productsRef = db.collection('products');
 let unsubscribeProducts = null;
 let products = [];
@@ -621,11 +632,20 @@ document.getElementById('confirmOkBtn').onclick = async () => {
 };
 
 async function removeProduct(id){
-  try{
-    await productsRef.doc(id).delete();
-    showToast('Producto retirado');
-  }catch(e){
+  const operacion = productsRef.doc(id).delete();
+
+  const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), 4000));
+  const resultado = await Promise.race([operacion.then(() => 'ok').catch(() => 'error-inmediato'), timeout]);
+
+  if(resultado === 'error-inmediato'){
     showToast('No se pudo borrar. Revisá tu conexión');
+    return;
+  }
+  if(resultado === 'timeout'){
+    showToast('Retirado. Terminando de sincronizar...');
+    operacion.catch(() => showToast('Ojo: un producto no se pudo sincronizar. Revisá tu conexión'));
+  } else {
+    showToast('Producto retirado');
   }
 }
 
@@ -687,18 +707,37 @@ document.getElementById('saveBtn').onclick = async () => {
     showToast('Falta nombre o fecha de vencimiento');
     return;
   }
-  try{
-    if(editingId){
-      await productsRef.doc(editingId).update({ name, category: selectedCategory, expDate: date, notes });
-      overlay.classList.remove('open');
-      showToast('Producto actualizado');
-    } else {
-      await productsRef.add({ name, category: selectedCategory, expDate: date, notes });
-      overlay.classList.remove('open');
-      showToast('Producto cargado');
-    }
-  }catch(e){
+  const btn = document.getElementById('saveBtn');
+  const textoOriginal = btn.textContent;
+  const eraEdicion = !!editingId;
+  btn.disabled = true;
+  btn.textContent = 'Guardando...';
+
+  const operacion = eraEdicion
+    ? productsRef.doc(editingId).update({ name, category: selectedCategory, expDate: date, notes })
+    : productsRef.add({ name, category: selectedCategory, expDate: date, notes });
+
+  // No esperamos más de 4 segundos al servidor: gracias al guardado offline que activamos,
+  // el producto ya está a salvo en el celular aunque el servidor tarde en confirmar.
+  const timeout = new Promise(resolve => setTimeout(() => resolve('timeout'), 4000));
+  const resultado = await Promise.race([operacion.then(() => 'ok').catch(() => 'error-inmediato'), timeout]);
+
+  btn.disabled = false;
+  btn.textContent = textoOriginal;
+
+  if(resultado === 'error-inmediato'){
     showToast('No se pudo guardar. Revisá tu conexión');
+    return; // dejamos la ventana abierta para que puedan reintentar
+  }
+
+  overlay.classList.remove('open');
+  if(resultado === 'timeout'){
+    showToast('Guardado. Terminando de sincronizar...');
+    // Si igual llega a fallar más tarde (poco común, ya está a salvo offline), avisamos aparte
+    // porque para este punto la ventana ya se cerró.
+    operacion.catch(() => showToast('Ojo: un producto no se pudo sincronizar. Revisá tu conexión'));
+  } else {
+    showToast(eraEdicion ? 'Producto actualizado' : 'Producto cargado');
   }
 };
 
