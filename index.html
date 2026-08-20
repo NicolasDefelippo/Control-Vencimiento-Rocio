@@ -491,9 +491,10 @@ function daysUntil(dateStr){
 }
 
 // La fecha de retiro es un día antes de la fecha impresa en la etiqueta
-function retiroDate(expDateStr){
+function retiroDate(expDateStr, category){
+  if(category === 'torta') return expDateStr; // las tortas se retiran el mismo día del vencimiento
   const d = new Date(expDateStr + 'T00:00:00');
-  d.setDate(d.getDate() - 1);
+  d.setDate(d.getDate() - 1); // el resto de los productos, un día antes por seguridad
   return d.toISOString().slice(0,10);
 }
 
@@ -551,10 +552,10 @@ function showToast(msg){
 function render(){
   const main = document.getElementById('main');
   const enCategoria = products.filter(p => (p.category || 'general') === currentCategoryFilter);
-  const sorted = [...enCategoria].sort((a,b)=> daysUntil(retiroDate(a.expDate)) - daysUntil(retiroDate(b.expDate)));
+  const sorted = [...enCategoria].sort((a,b)=> daysUntil(retiroDate(a.expDate, a.category)) - daysUntil(retiroDate(b.expDate, b.category)));
 
   const vencidos = sorted.filter(p => daysUntil(p.expDate) < 0).length;
-  const hoy = sorted.filter(p => estadoUrgencia(daysUntil(p.expDate), daysUntil(retiroDate(p.expDate))) === 'hoy').length;
+  const hoy = sorted.filter(p => estadoUrgencia(daysUntil(p.expDate), daysUntil(retiroDate(p.expDate, p.category))) === 'hoy').length;
   document.getElementById('statVencido').textContent = vencidos;
   document.getElementById('statHoy').textContent = hoy;
   document.getElementById('statOk').textContent = sorted.length;
@@ -570,7 +571,7 @@ function render(){
   let html = '';
   let lastGroup = null;
   sorted.forEach(p => {
-    const rDate = retiroDate(p.expDate);
+    const rDate = retiroDate(p.expDate, p.category);
     const d = daysUntil(rDate);
     const dVenc = daysUntil(p.expDate);
     const estado = estadoUrgencia(dVenc, d);
