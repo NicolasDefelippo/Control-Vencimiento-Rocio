@@ -383,7 +383,7 @@
   <div class="header-row">
     <div>
       <h1>🧁 Control de vencimientos</h1>
-      <p class="header-meta"><span id="todayDate"></span><span id="subtitle"> · Cargando...</span></p>
+      <p class="header-meta"><span id="sucursalNombre"></span> · <span id="todayDate"></span><span id="subtitle"> · Cargando...</span></p>
     </div>
     <button id="logoutBtn" class="logout-btn">Salir</button>
   </div>
@@ -494,6 +494,15 @@ db.enablePersistence().catch((err) => {
 const productsRef = db.collection('products');
 let unsubscribeProducts = null;
 let products = [];
+
+// Cada usuario de Firebase Authentication pertenece a una sucursal.
+// Las reglas de Firestore usan la misma tabla (ver firestore.rules).
+const SUCURSALES = {
+  'vencimientos@rocio.app': { id: 'estrada', nombre: 'Estrada' },
+  'travi@rocio.app': { id: 'travi', nombre: 'Travi' }
+};
+let sucursal = null; // se define al iniciar sesión
+
 let currentCategoryFilter = 'general'; // qué pestaña se está viendo: 'general' o 'torta'
 let searchQuery = ''; // texto que se está buscando, vacío = sin filtro
 
@@ -548,7 +557,7 @@ function estadoUrgencia(dVenc, dRetiro){
 // llega acá solo, en tiempo real, sin que nadie tenga que refrescar nada.
 function suscribirseAProductos(){
   if(unsubscribeProducts) unsubscribeProducts();
-  unsubscribeProducts = productsRef.onSnapshot(
+  unsubscribeProducts = productsRef.where('branch', '==', sucursal.id).onSnapshot(
     (snapshot) => {
       products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       render();
@@ -738,7 +747,7 @@ document.getElementById('saveBtn').onclick = async () => {
 
   const operacion = eraEdicion
     ? productsRef.doc(editingId).update({ name, category: selectedCategory, expDate: date, notes })
-    : productsRef.add({ name, category: selectedCategory, expDate: date, notes });
+    : productsRef.add({ name, category: selectedCategory, expDate: date, notes, branch: sucursal.id });
 
   // No esperamos más de 4 segundos al servidor: gracias al guardado offline que activamos,
   // el producto ya está a salvo en el celular aunque el servidor tarde en confirmar.
@@ -815,12 +824,22 @@ document.getElementById('searchInput').oninput = (e) => {
 // Reacciona automáticamente cuando alguien entra o sale de sesión
 auth.onAuthStateChanged((user) => {
   if(user){
+    sucursal = SUCURSALES[user.email] || null;
+    if(!sucursal){
+      // Usuario válido en Firebase pero sin sucursal asignada: no lo dejamos entrar
+      document.getElementById('loginError').textContent = 'Este usuario no tiene una sucursal asignada';
+      auth.signOut();
+      return;
+    }
     loginScreen.style.display = 'none';
     appRoot.style.display = 'block';
+    document.getElementById('sucursalNombre').textContent = 'Sucursal ' + sucursal.nombre;
     mostrarFechaHoy();
     suscribirseAProductos();
   } else {
     if(unsubscribeProducts){ unsubscribeProducts(); unsubscribeProducts = null; }
+    products = [];
+    sucursal = null;
     appRoot.style.display = 'none';
     loginScreen.style.display = 'flex';
     document.getElementById('loginPass').value = '';
